@@ -30,6 +30,23 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import KMeans
 
 TaggededDocument = gensim.models.doc2vec.TaggedDocument
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(level=logging.INFO)
+handler = logging.FileHandler("log.txt")
+handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+
+logger.addHandler(handler)
+logger.addHandler(console)
+
+
+
 
 def get_sentences(doc):
     line_break = re.compile('[\u3000 \r\n]')
@@ -60,6 +77,7 @@ def get_datasest(list_name):
     for path in files:
         if(os.path.isfile(list_name + '/' + path)):   
             print(path+'---start---')
+            logger.info(path+'---start---')
             file = open(list_name + '/' + path, 'r',encoding='utf8').read()
             #print("content:",file.split('\n')[2:])
             docs = get_sentences(file)
@@ -190,7 +208,7 @@ def kMeans(dataset, dist, center, k,test_docs):
 
     flag += 1
     print('************************迭代'+str(flag)+'次***************************')
-    
+    logger.info('************************迭代{}次***************************'.format(str(flag)))
     #更新均值点
     center_ = np.array([clusterMean(i) for i in all_kinds])
     #print("center_",center_)
@@ -223,7 +241,8 @@ def kMeans(dataset, dist, center, k,test_docs):
         for i in result_index:
            # print(test_docs[i])
             prediction+= test_docs[i]
-        print(prediction)
+        logger.info("predict:", prediction)
+        logger.info("---------------------------------")
         print("---------------------------------")
     else:
         #递归调用kMeans函数
@@ -380,17 +399,18 @@ def checker_iris(final_location,k,data,center,test_docs,weight):
                 #tmp.append(distance(center[i], data[j]))
                  tmp.append(ecludDist(center[i], j)*weight[weight_index[i][wi]])
                  wi+=1
-            print(tmp)
+            #print(tmp)
             if len(tmp)!=0:
                 result_index.append(all_kinds[i][tmp.index(min(tmp))])
       #  print(result_index)
     result_index.sort()
     for i in result_index:
-        print(test_docs[i])
+        #print(test_docs[i])
         prediction += test_docs[i]
     
     #print(prediction)
-    print("---------------------------------")
+
+    #print("---------------------------------")
     return prediction
 
 
@@ -483,13 +503,24 @@ def Rouge_2(model, reference):#terms_reference为参考摘要，terms_model为�
  
 
 def my_Rouge(model, reference):
-    global ALL_Rouge_1_P,ALL_Rouge_2_P,ALL_Rouge_L_P
+    global ALL_Rouge_1_R,ALL_Rouge_2_R,ALL_Rouge_L_R
+    global ALL_Rouge_1_P, ALL_Rouge_2_P, ALL_Rouge_L_P
+    global ALL_Rouge_1_F, ALL_Rouge_2_F, ALL_Rouge_L_F
     print("rouge_1="+str(Rouge_1(model, reference)))
     print("rouge_2="+str(Rouge_2(model, reference)))
     print("rouge_L="+str(Rouge_L(model, reference)))
-    ALL_Rouge_1_P += Rouge_1(model, reference)[1]
-    ALL_Rouge_2_P += Rouge_2(model, reference)[1]
-    ALL_Rouge_L_P += Rouge_L(model, reference)[1]
+    logger.info("rouge_1={}".format(Rouge_1(model, reference)))
+    logger.info("rouge_2={}".format(Rouge_2(model, reference)))
+    logger.info("rouge_L={}".format(Rouge_L(model, reference)))
+    ALL_Rouge_1_R += Rouge_1(model, reference)[1]
+    ALL_Rouge_2_R += Rouge_2(model, reference)[1]
+    ALL_Rouge_L_R += Rouge_L(model, reference)[1]
+    ALL_Rouge_1_P += Rouge_1(model, reference)[0]
+    ALL_Rouge_2_P += Rouge_2(model, reference)[0]
+    ALL_Rouge_L_P += Rouge_L(model, reference)[0]
+    ALL_Rouge_1_F += Rouge_1(model, reference)[2]
+    ALL_Rouge_2_F += Rouge_2(model, reference)[2]
+    ALL_Rouge_L_F += Rouge_L(model, reference)[2]
     
 
 
@@ -508,15 +539,16 @@ def processing(list_name):
     for path in files:
         if(os.path.isfile(list_name + '/' + path)):   
             print(path+'---start---')
+            logger.info(path+'---start---')
             file = open(list_name + '/' + path, 'r',encoding='utf8').read()
             title=file.split('\n')[0]
             contents=file.split('\n')[2:]
-            print("title:",file.split('\n')[0])
-            
+            print("title:",str(file.split('\n')[0]))
+            logger.info("title={}".format((file.split('\n')[0])))
             filecontent =""
             for content in contents:
                 filecontent+=content
-            print("filecontent:",filecontent)
+            logger.info("filecontent={}".format(filecontent))
             weight=[]
             title_weight=[]
             para_weight=[]
@@ -550,9 +582,10 @@ def processing(list_name):
                         
                     x_texts=np.array(batches)
                     #print(x_texts)
-                    k=(int)(0.15 * len(test_docs))
-                    if k<=0:
-                        k=1
+                    k=3
+                    #k=(int)(0.15 * len(test_docs))
+                    #if k<=0:
+                    #    k=1
                     for i in range(len(title_weight)):
                         weight.append(title_weight[i]/para_weight[i])
 
@@ -562,25 +595,41 @@ def processing(list_name):
                     '''
                     f:F1值  p：查准率  R：召回率
                     '''
-                    
+                    logger.info("predict={}".format(prediction))
                     my_Rouge(prediction, title)
-
+                    with open('fuzzy_res_all.txt', 'a+', encoding='utf-8') as f:
+                        f.write('acticle:'+filecontent+'\n')
+                        f.write('ref:'+title+'\n')
+                        f.write('dec:'+prediction+"\n\n")
                     #print(rouge_score["rouge-2"])
                     #print(rouge_score[0]["rouge-l"])
 
     print(count)
     AVL_Rouge_1_P = ALL_Rouge_1_P/count
     AVL_Rouge_2_P = ALL_Rouge_2_P/count
-    AVL_Rouge_L_P = ALL_Rouge_L_P/count    
-    print("rouge_1:",AVL_Rouge_1_P)
-    print("rouge_2:",AVL_Rouge_2_P)
-    print("rouge_L:",AVL_Rouge_L_P)
+    AVL_Rouge_L_P = ALL_Rouge_L_P/count
+    AVL_Rouge_1_R = ALL_Rouge_1_R / count
+    AVL_Rouge_2_R = ALL_Rouge_2_R / count
+    AVL_Rouge_L_R = ALL_Rouge_L_R / count
+    AVL_Rouge_1_F = ALL_Rouge_1_F / count
+    AVL_Rouge_2_F = ALL_Rouge_2_F / count
+    AVL_Rouge_L_F = ALL_Rouge_L_F / count
+    print("rouge_1:({},{},{})".format(AVL_Rouge_1_P, AVL_Rouge_1_R, AVL_Rouge_1_F))
+    print("rouge_2:({},{},{})".format(AVL_Rouge_2_P, AVL_Rouge_2_R, AVL_Rouge_2_F))
+    print("rouge_L:({},{},{})".format(AVL_Rouge_L_P, AVL_Rouge_L_R, AVL_Rouge_L_F))
+
 
 ALL_Rouge_1_P=0
 ALL_Rouge_2_P=0
 ALL_Rouge_L_P=0
+ALL_Rouge_1_R=0
+ALL_Rouge_2_R=0
+ALL_Rouge_L_R=0
+ALL_Rouge_1_F=0
+ALL_Rouge_2_F=0
+ALL_Rouge_L_F=0
 count = 0
-processing('E:\datadel\passage_all')
+processing('E:\datadel\passage_test')
 
 
 # In[ ]:
